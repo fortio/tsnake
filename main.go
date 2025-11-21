@@ -1,24 +1,50 @@
 // tsnake
 // Play the classic game snake in the terminal
-
 package main
 
 import (
 	"flag"
+	"os"
+	"runtime/pprof"
 
+	"fortio.org/cli"
+	"fortio.org/log"
 	"fortio.org/terminal/ansipixels"
 	"fortio.org/terminal/ansipixels/tcolor"
 )
 
 func main() {
+	os.Exit(Main())
+}
+
+func Main() int {
+	truecolorDefault := ansipixels.DetectColorMode().TrueColor
+	fTrueColor := flag.Bool("truecolor", truecolorDefault,
+		"Use true color (24-bit RGB) instead of 8-bit ANSI colors (default is true if COLORTERM is set)")
+	fCpuprofile := flag.String("profile-cpu", "", "write cpu profile to `file`")
+	fMemprofile := flag.String("profile-mem", "", "write memory profile to `file`")
 	fps := flag.Float64("fps", 60, "set fps")
 	halfFlag := flag.Bool("square", false, "use half height blocks so the snake's body is more square")
-	flag.Parse()
+	cli.Main()
+	if *fCpuprofile != "" {
+		f, err := os.Create(*fCpuprofile)
+		if err != nil {
+			return log.FErrf("can't open file for cpu profile: %v", err)
+		}
+		err = pprof.StartCPUProfile(f)
+		if err != nil {
+			return log.FErrf("can't start cpu profile: %v", err)
+		}
+		log.Infof("Writing cpu profile to %s", *fCpuprofile)
+		defer pprof.StopCPUProfile()
+	}
 	draw := drawFull
 	if *halfFlag {
 		draw = drawHalf
 	}
 	ap := ansipixels.NewAnsiPixels(*fps)
+	ap.TrueColor = *fTrueColor
+
 	err := ap.Open()
 	if err != nil {
 		panic("error opening terminal")
@@ -31,12 +57,17 @@ func main() {
 	ap.SyncBackgroundColor()
 	ap.HideCursor()
 	ap.ClearScreen()
-	h := ap.H
-	if *halfFlag {
-		h = ap.H * 2
+	var s *snake
+	ap.OnResize = func() error {
+		h := ap.H
+		if *halfFlag {
+			h = ap.H * 2
+		}
+		s = newSnake(ap.W, h)
+		return nil
 	}
-	s := newSnake(ap.W, h)
-	_ = ap.FPSTicks(func() bool {
+	_ = ap.OnResize()
+	err = ap.FPSTicks(func() bool {
 		if len(ap.Data) > 0 && ap.Data[0] == 'q' {
 			return false
 		}
@@ -50,6 +81,23 @@ func main() {
 		draw(ap, s)
 		return true
 	})
+	if *fMemprofile != "" {
+		f, errMP := os.Create(*fMemprofile)
+		if errMP != nil {
+			return log.FErrf("can't open file for mem profile: %v", errMP)
+		}
+		errMP = pprof.WriteHeapProfile(f)
+		if errMP != nil {
+			return log.FErrf("can't write mem profile: %v", err)
+		}
+		log.Infof("Wrote memory profile to %s", *fMemprofile)
+		_ = f.Close()
+	}
+	if err != nil {
+		log.Infof("Exiting on %v", err)
+		return 1
+	}
+	return 0
 }
 
 func handleInput(s *snake, dataValue byte) {
