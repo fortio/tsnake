@@ -23,7 +23,7 @@ func Main() int {
 		"Use true color (24-bit RGB) instead of 8-bit ANSI colors (default is true if COLORTERM is set)")
 	fCpuprofile := flag.String("profile-cpu", "", "write cpu profile to `file`")
 	fMemprofile := flag.String("profile-mem", "", "write memory profile to `file`")
-	fps := flag.Float64("fps", 60, "set fps")
+	fps := flag.Float64("fps", 10, "set fps")
 	halfFlag := flag.Bool("square", false, "use half height blocks so the snake's body is more square")
 	cli.Main()
 	if *fCpuprofile != "" {
@@ -63,7 +63,7 @@ func Main() int {
 		if *halfFlag {
 			h = ap.H * 2
 		}
-		s = newSnake(ap.W, h)
+		s = newSnake(ap.W, h, *halfFlag)
 		return nil
 	}
 	_ = ap.OnResize()
@@ -203,6 +203,7 @@ func drawPixels(ap *ansipixels.AnsiPixels, pix map[coords]*pixel) {
 			continue
 		}
 		ap.MoveCursor(coords.X, coords.Y)
+
 		ap.WriteBg(bg)
 		ap.WriteFg(fg)
 		ap.WriteRune(char)
