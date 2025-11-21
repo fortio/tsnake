@@ -6,7 +6,7 @@
 
 # tsnake
 
-Initial commit for tsnake
+Play the classic game of snake in the terminal
 
 ## Install
 You can get the binary from [releases](https://github.com/fortio/tsnake/releases)

@@ -22,7 +22,7 @@ jobs:
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: fortio/workflows/.github/workflows/releaser.yml@main
         with:
-            description: "Initial commit for tsnake"
+            description: "Play the classic game of snake in the terminal"
             binary_name: "tsnake"
             dockerfile: "./Dockerfile"
         secrets:
