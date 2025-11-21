@@ -1,6 +1,5 @@
 // tsnake
-// Initial commit for tsnake
-
+// Play the classic game snake in the terminal
 package main
 
 import (
@@ -11,14 +10,11 @@ import (
 	"fortio.org/cli"
 	"fortio.org/log"
 	"fortio.org/terminal/ansipixels"
+	"fortio.org/terminal/ansipixels/tcolor"
 )
 
 func main() {
 	os.Exit(Main())
-}
-
-type State struct {
-	ap *ansipixels.AnsiPixels
 }
 
 func Main() int {
@@ -27,7 +23,8 @@ func Main() int {
 		"Use true color (24-bit RGB) instead of 8-bit ANSI colors (default is true if COLORTERM is set)")
 	fCpuprofile := flag.String("profile-cpu", "", "write cpu profile to `file`")
 	fMemprofile := flag.String("profile-mem", "", "write memory profile to `file`")
-	fFPS := flag.Float64("fps", 60, "Frames per second (ansipixels rendering)")
+	fps := flag.Float64("fps", 60, "set fps")
+	halfFlag := flag.Bool("square", false, "use half height blocks so the snake's body is more square")
 	cli.Main()
 	if *fCpuprofile != "" {
 		f, err := os.Create(*fCpuprofile)
@@ -41,28 +38,49 @@ func Main() int {
 		log.Infof("Writing cpu profile to %s", *fCpuprofile)
 		defer pprof.StopCPUProfile()
 	}
-	ap := ansipixels.NewAnsiPixels(*fFPS)
-	st := &State{
-		ap: ap,
+	draw := drawFull
+	if *halfFlag {
+		draw = drawHalf
 	}
+	ap := ansipixels.NewAnsiPixels(*fps)
 	ap.TrueColor = *fTrueColor
-	if err := ap.Open(); err != nil {
-		return 1 // error already logged
+
+	err := ap.Open()
+	if err != nil {
+		panic("error opening terminal")
 	}
-	defer ap.Restore()
+	defer func() {
+		ap.Restore()
+		ap.ShowCursor()
+		ap.MoveCursor(0, 0)
+	}()
 	ap.SyncBackgroundColor()
+	ap.HideCursor()
+	ap.ClearScreen()
+	var s *snake
 	ap.OnResize = func() error {
-		ap.ClearScreen()
-		ap.StartSyncMode()
-		// Redraw/resize/do something here:
-		ap.WriteBoxed(ap.H/2-1, "Welcome to tsnake!\n%dx%d\nQ to quit.", ap.W, ap.H)
-		// ...
-		ap.EndSyncMode()
+		h := ap.H
+		if *halfFlag {
+			h = ap.H * 2
+		}
+		s = newSnake(ap.W, h)
 		return nil
 	}
-	_ = ap.OnResize()   // initial draw.
-	ap.AutoSync = false // for cursor to blink on splash screen. remove if not wanted.
-	err := ap.FPSTicks(st.Tick)
+	_ = ap.OnResize()
+	err = ap.FPSTicks(func() bool {
+		if len(ap.Data) > 0 && ap.Data[0] == 'q' {
+			return false
+		}
+		if len(ap.Data) >= 3 {
+			handleInput(s, ap.Data[2])
+		}
+		ap.ClearScreen()
+		if !s.next() {
+			return false
+		}
+		draw(ap, s)
+		return true
+	})
 	if *fMemprofile != "" {
 		f, errMP := os.Create(*fMemprofile)
 		if errMP != nil {
@@ -82,18 +100,111 @@ func Main() int {
 	return 0
 }
 
-func (st *State) Tick() bool {
-	if len(st.ap.Data) == 0 {
-		return true
+func handleInput(s *snake, dataValue byte) {
+	switch dataValue {
+	case 65:
+		if s.dir == R || s.dir == L {
+			s.dir = U
+		}
+	case 66:
+		if s.dir == R || s.dir == L {
+			s.dir = D
+		}
+	case 67:
+		if s.dir == U || s.dir == D {
+			s.dir = R
+		}
+	case 68:
+		if s.dir == U || s.dir == D {
+			s.dir = L
+		}
 	}
-	c := st.ap.Data[0]
-	switch c {
-	case 'q', 'Q', 3: // Ctrl-C
-		log.Infof("Exiting on %q", c)
-		return false
-	default:
-		log.Debugf("Input %q...", c)
-		// Do something
+}
+
+func drawFull(ap *ansipixels.AnsiPixels, s *snake) {
+	mouthCoords := s.snake[len(s.snake)-1]
+	ap.WriteAt(mouthCoords.X, mouthCoords.Y, "%s ", ap.ColorOutput.Background(tcolor.Red.Color()))
+	foodCoords := s.food
+	ap.WriteAt(foodCoords.X, foodCoords.Y, "%s ", ap.ColorOutput.Background(tcolor.Green.Color()))
+	for _, coords := range s.snake[:len(s.snake)-1] {
+		ap.WriteAt(coords.X, coords.Y, "%s ", ap.ColorOutput.Background(tcolor.White.Color()))
 	}
-	return true
+	ap.WriteString(tcolor.Reset)
+}
+
+type pixel struct {
+	top, bottom           bool
+	topColor, bottomColor tcolor.Color
+}
+
+func drawHalf(ap *ansipixels.AnsiPixels, s *snake) {
+	pix := make(map[coords]*pixel)
+	color := tcolor.White.Color()
+	l := len(s.snake)
+	for i, coords := range s.snake {
+		if i == l-1 {
+			color = tcolor.Red.Color()
+		}
+		if coords.Y%2 == 0 {
+			coords.Y /= 2
+			if pix[coords] == nil {
+				pix[coords] = &pixel{}
+			}
+			pix[coords].top = true
+			pix[coords].topColor = color
+		} else {
+			coords.Y /= 2
+			if pix[coords] == nil {
+				pix[coords] = &pixel{}
+			}
+			pix[coords].bottom = true
+			pix[coords].bottomColor = color
+		}
+	}
+	fy := coords{s.food.X, s.food.Y / 2}
+	if pix[fy] == nil {
+		pix[fy] = &pixel{}
+	}
+	if s.food.Y%2 == 0 {
+		pix[fy].top = true
+		pix[fy].topColor = tcolor.Green.Color()
+	} else {
+		pix[fy].bottom = true
+		pix[fy].bottomColor = tcolor.Green.Color()
+	}
+	drawPixels(ap, pix)
+	ap.WriteString(tcolor.Reset)
+}
+
+func drawPixels(ap *ansipixels.AnsiPixels, pix map[coords]*pixel) {
+	var char rune
+	var bg, fg tcolor.Color
+	for coords, pixel := range pix {
+		switch {
+		case pixel.top && pixel.bottom:
+			if pixel.topColor == pixel.bottomColor {
+				char = ' '
+				bg = pixel.topColor
+				fg = pixel.topColor
+			} else {
+				char = ansipixels.BottomHalfPixel
+				bg = pixel.topColor
+				fg = pixel.bottomColor
+			}
+		case pixel.top:
+			char = ansipixels.TopHalfPixel
+			bg = ap.Background.Color()
+			fg = pixel.topColor
+		case pixel.bottom:
+			char = ansipixels.BottomHalfPixel
+			bg = ap.Background.Color()
+			fg = pixel.bottomColor
+		default:
+			continue
+		}
+		ap.MoveCursor(coords.X, coords.Y)
+		ap.WriteBg(bg)
+		ap.WriteFg(fg)
+		ap.WriteRune(char)
+	}
 }
