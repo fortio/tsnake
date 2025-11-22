@@ -33,7 +33,8 @@ func Main() int {
 	fMemprofile := flag.String("profile-mem", "", "write memory profile to `file`")
 	fps := flag.Float64("fps", 10, "set fps")
 	halfFlag := flag.Bool("square", false, "use half height blocks so the snake's body is more square")
-	relativeMovementFlag := flag.Bool("relative", false, "move the snake with a/d or left/right so that it turns relative to its current direction")
+	relativeMovementFlag := flag.Bool("relative", false,
+		"move the snake with a/d or left/right so that it turns relative to its current direction")
 	cli.Main()
 	if *fCpuprofile != "" {
 		f, err := os.Create(*fCpuprofile)
@@ -81,7 +82,7 @@ func Main() int {
 	}
 	_ = ap.OnResize()
 	var buffer byte
-	var bufferType bufferType = EMPTY
+	bufferType := EMPTY
 	err = ap.FPSTicks(func() bool {
 		if len(ap.Data) > 0 && ap.Data[0] == 'q' {
 			return false
