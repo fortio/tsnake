@@ -31,6 +31,7 @@ type snake struct {
 	dir            direction
 	verticalStreak int
 	square         bool
+	firstFrame     bool
 }
 
 func newSnake(mx, my int, square bool) *snake {
@@ -58,6 +59,7 @@ func (s *snake) next() bool {
 			return true
 		}
 	}
+	s.firstFrame = false
 	length := len(s.snake)
 	dir := s.dir
 	changed := directionCoords[dir]
