@@ -24,14 +24,17 @@ var directionCoords = [4]coords{
 }
 
 type snake struct {
-	m          map[coords]bool
-	food       coords
-	snake      []coords // last element is snake mouth
-	maxX, maxY int
-	dir        direction
+	m              map[coords]bool
+	food           coords
+	snake          []coords // last element is snake mouth
+	maxX, maxY     int
+	dir            direction
+	verticalStreak int
+	square         bool
+	firstFrame     bool
 }
 
-func newSnake(mx, my int) *snake {
+func newSnake(mx, my int, square bool) *snake {
 	snak := make([]coords, 0, mx*my)
 	snak = append(snak, coords{mx / 2, my / 2})
 	m := make(map[coords]bool)
@@ -44,11 +47,19 @@ func newSnake(mx, my int) *snake {
 		},
 		maxX: mx,
 		maxY: my, dir: d, m: m,
+		square: square,
 	}
 	return &s
 }
 
 func (s *snake) next() bool {
+	if (s.dir == U || s.dir == D) && !s.square {
+		s.verticalStreak++
+		if s.verticalStreak%2 != 0 {
+			return true
+		}
+	}
+	s.firstFrame = false
 	length := len(s.snake)
 	dir := s.dir
 	changed := directionCoords[dir]

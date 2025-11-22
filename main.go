@@ -17,14 +17,24 @@ func main() {
 	os.Exit(Main())
 }
 
+type bufferType uint
+
+const (
+	EMPTY bufferType = iota
+	WASD
+	ARROWKEYS
+)
+
 func Main() int {
 	truecolorDefault := ansipixels.DetectColorMode().TrueColor
 	fTrueColor := flag.Bool("truecolor", truecolorDefault,
 		"Use true color (24-bit RGB) instead of 8-bit ANSI colors (default is true if COLORTERM is set)")
 	fCpuprofile := flag.String("profile-cpu", "", "write cpu profile to `file`")
 	fMemprofile := flag.String("profile-mem", "", "write memory profile to `file`")
-	fps := flag.Float64("fps", 60, "set fps")
+	fps := flag.Float64("fps", 10, "set fps")
 	halfFlag := flag.Bool("square", false, "use half height blocks so the snake's body is more square")
+	relativeMovementFlag := flag.Bool("relative", false,
+		"move the snake with a/d or left/right so that it turns relative to its current direction")
 	cli.Main()
 	if *fCpuprofile != "" {
 		f, err := os.Create(*fCpuprofile)
@@ -63,22 +73,40 @@ func Main() int {
 		if *halfFlag {
 			h = ap.H * 2
 		}
-		s = newSnake(ap.W, h)
+		s = newSnake(ap.W, h, *halfFlag)
 		return nil
 	}
+	handleWasd, handleArrowKeys := handleWasd, handleArrowKeys
+	if *relativeMovementFlag {
+		handleWasd, handleArrowKeys = handleRelativeAD, handleRelativeArrowKeys
+	}
 	_ = ap.OnResize()
+	var buffer byte
+	bType := EMPTY
 	err = ap.FPSTicks(func() bool {
 		if len(ap.Data) > 0 && ap.Data[0] == 'q' {
 			return false
 		}
-		if len(ap.Data) >= 3 {
-			handleInput(s, ap.Data[2])
+		switch bType {
+		case EMPTY:
+			if len(ap.Data) == 1 {
+				handleWasd(s, ap.Data[0], &buffer, &bType, false)
+			}
+			if len(ap.Data) >= 3 {
+				handleArrowKeys(s, ap.Data[2], &buffer, &bType, false)
+			}
+
+		case WASD:
+			handleWasd(s, buffer, &buffer, &bType, true)
+		case ARROWKEYS:
+			handleArrowKeys(s, buffer, &buffer, &bType, true)
 		}
 		ap.ClearScreen()
 		if !s.next() {
 			return false
 		}
 		draw(ap, s)
+		ap.WriteAt(0, 0, "%v %v %v", s.dir, s.firstFrame, bType)
 		return true
 	})
 	if *fMemprofile != "" {
@@ -100,24 +128,190 @@ func Main() int {
 	return 0
 }
 
-func handleInput(s *snake, dataValue byte) {
+const (
+	ARROWUP = 65 + iota
+	ARROWDOWN
+	ARROWRIGHT
+	ARROWLEFT
+)
+
+func handleRelativeAD(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, clearBuffer bool) {
 	switch dataValue {
-	case 65:
+	case 'a', 'A':
+		switch s.dir {
+		case U:
+			if s.firstFrame && !s.square {
+				*buffer = ARROWLEFT
+				*bufferType = ARROWKEYS
+			} else {
+				s.dir = L
+			}
+		case D:
+			if s.firstFrame && !s.square {
+				*buffer = ARROWLEFT
+				*bufferType = ARROWKEYS
+			} else {
+				s.dir = R
+			}
+		case L:
+			s.dir = D
+			s.firstFrame = true
+		case R:
+			s.dir = U
+			s.firstFrame = true
+		}
+	case 'd', 'D':
+		switch s.dir {
+		case U:
+			if s.firstFrame && !s.square {
+				*buffer = ARROWRIGHT
+				*bufferType = ARROWKEYS
+			} else {
+				s.dir = R
+			}
+		case D:
+			if s.firstFrame && !s.square {
+				*buffer = ARROWRIGHT
+				*bufferType = ARROWKEYS
+			} else {
+				s.dir = L
+			}
+		case L:
+			s.dir = U
+			s.firstFrame = true
+		case R:
+			s.dir = D
+			s.firstFrame = true
+		}
+	}
+	if clearBuffer {
+		*bufferType = EMPTY
+	}
+}
+
+func handleRelativeArrowKeys(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, clearBuffer bool) {
+	switch dataValue {
+	case ARROWLEFT:
+		switch s.dir {
+		case U:
+			if s.firstFrame && !s.square {
+				*buffer = ARROWLEFT
+				*bufferType = ARROWKEYS
+			} else {
+				s.dir = L
+			}
+		case D:
+			if s.firstFrame && !s.square {
+				*buffer = ARROWLEFT
+				*bufferType = ARROWKEYS
+			} else {
+				s.dir = R
+			}
+		case L:
+			s.dir = D
+			s.firstFrame = true
+		case R:
+			s.dir = U
+			s.firstFrame = true
+		}
+	case ARROWRIGHT:
+		switch s.dir {
+		case U:
+			if s.firstFrame && !s.square {
+				*buffer = ARROWRIGHT
+				*bufferType = ARROWKEYS
+			} else {
+				s.dir = R
+			}
+		case D:
+			if s.firstFrame && !s.square {
+				*buffer = ARROWRIGHT
+				*bufferType = ARROWKEYS
+			} else {
+				s.dir = L
+			}
+		case L:
+			s.dir = U
+			s.firstFrame = true
+		case R:
+			s.dir = D
+			s.firstFrame = true
+		}
+	}
+	if clearBuffer {
+		*bufferType = EMPTY
+	}
+}
+
+func handleArrowKeys(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, clearBuffer bool) {
+	switch dataValue {
+	case ARROWUP:
 		if s.dir == R || s.dir == L {
 			s.dir = U
+			s.firstFrame = true
 		}
-	case 66:
+	case ARROWDOWN:
 		if s.dir == R || s.dir == L {
 			s.dir = D
+			s.firstFrame = true
 		}
-	case 67:
+	case ARROWRIGHT:
 		if s.dir == U || s.dir == D {
-			s.dir = R
+			if s.firstFrame && !s.square {
+				*buffer = 67
+				*bufferType = ARROWKEYS
+			} else {
+				s.dir = R
+			}
 		}
-	case 68:
+	case ARROWLEFT:
 		if s.dir == U || s.dir == D {
-			s.dir = L
+			if s.firstFrame && !s.square {
+				*buffer = 68
+				*bufferType = ARROWKEYS
+			} else {
+				s.dir = L
+			}
 		}
+	}
+	if clearBuffer {
+		*bufferType = EMPTY
+	}
+}
+
+func handleWasd(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, clearBuffer bool) {
+	switch dataValue {
+	case 'w', 'W':
+		if s.dir == R || s.dir == L {
+			s.dir = U
+			s.firstFrame = true
+		}
+	case 's', 'S':
+		if s.dir == R || s.dir == L {
+			s.dir = D
+			s.firstFrame = true
+		}
+	case 'd', 'D':
+		if s.dir == U || s.dir == D {
+			if s.firstFrame && !s.square {
+				*buffer = 67
+				*bufferType = ARROWKEYS
+			} else {
+				s.dir = R
+			}
+		}
+	case 'a', 'A':
+		if s.dir == U || s.dir == D {
+			if s.firstFrame && !s.square {
+				*buffer = 68
+				*bufferType = ARROWKEYS
+			} else {
+				s.dir = L
+			}
+		}
+	}
+	if clearBuffer {
+		*bufferType = EMPTY
 	}
 }
 
@@ -203,6 +397,7 @@ func drawPixels(ap *ansipixels.AnsiPixels, pix map[coords]*pixel) {
 			continue
 		}
 		ap.MoveCursor(coords.X, coords.Y)
+
 		ap.WriteBg(bg)
 		ap.WriteFg(fg)
 		ap.WriteRune(char)
