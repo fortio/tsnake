@@ -82,31 +82,31 @@ func Main() int {
 	}
 	_ = ap.OnResize()
 	var buffer byte
-	bufferType := EMPTY
+	bType := EMPTY
 	err = ap.FPSTicks(func() bool {
 		if len(ap.Data) > 0 && ap.Data[0] == 'q' {
 			return false
 		}
-		switch bufferType {
+		switch bType {
 		case EMPTY:
 			if len(ap.Data) == 1 {
-				handleWasd(s, ap.Data[0], &buffer, &bufferType, false)
+				handleWasd(s, ap.Data[0], &buffer, &bType, false)
 			}
 			if len(ap.Data) >= 3 {
-				handleArrowKeys(s, ap.Data[2], &buffer, &bufferType, false)
+				handleArrowKeys(s, ap.Data[2], &buffer, &bType, false)
 			}
 
 		case WASD:
-			handleWasd(s, buffer, &buffer, &bufferType, true)
+			handleWasd(s, buffer, &buffer, &bType, true)
 		case ARROWKEYS:
-			handleArrowKeys(s, buffer, &buffer, &bufferType, true)
+			handleArrowKeys(s, buffer, &buffer, &bType, true)
 		}
 		ap.ClearScreen()
 		if !s.next() {
 			return false
 		}
 		draw(ap, s)
-		ap.WriteAt(0, 0, "%v %v %v", s.dir, s.firstFrame, bufferType)
+		ap.WriteAt(0, 0, "%v %v %v", s.dir, s.firstFrame, bType)
 		return true
 	})
 	if *fMemprofile != "" {
@@ -135,7 +135,7 @@ const (
 	ARROWLEFT
 )
 
-func handleRelativeAD(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, clear bool) {
+func handleRelativeAD(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, clearBuffer bool) {
 	switch dataValue {
 	case 'a', 'A':
 		switch s.dir {
@@ -184,12 +184,12 @@ func handleRelativeAD(s *snake, dataValue byte, buffer *byte, bufferType *buffer
 			s.firstFrame = true
 		}
 	}
-	if clear {
+	if clearBuffer {
 		*bufferType = EMPTY
 	}
 }
 
-func handleRelativeArrowKeys(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, clear bool) {
+func handleRelativeArrowKeys(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, clearBuffer bool) {
 	switch dataValue {
 	case ARROWLEFT:
 		switch s.dir {
@@ -238,12 +238,12 @@ func handleRelativeArrowKeys(s *snake, dataValue byte, buffer *byte, bufferType 
 			s.firstFrame = true
 		}
 	}
-	if clear {
+	if clearBuffer {
 		*bufferType = EMPTY
 	}
 }
 
-func handleArrowKeys(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, clear bool) {
+func handleArrowKeys(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, clearBuffer bool) {
 	switch dataValue {
 	case ARROWUP:
 		if s.dir == R || s.dir == L {
@@ -274,12 +274,12 @@ func handleArrowKeys(s *snake, dataValue byte, buffer *byte, bufferType *bufferT
 			}
 		}
 	}
-	if clear {
+	if clearBuffer {
 		*bufferType = EMPTY
 	}
 }
 
-func handleWasd(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, clear bool) {
+func handleWasd(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, clearBuffer bool) {
 	switch dataValue {
 	case 'w', 'W':
 		if s.dir == R || s.dir == L {
@@ -310,7 +310,7 @@ func handleWasd(s *snake, dataValue byte, buffer *byte, bufferType *bufferType, 
 			}
 		}
 	}
-	if clear {
+	if clearBuffer {
 		*bufferType = EMPTY
 	}
 }
