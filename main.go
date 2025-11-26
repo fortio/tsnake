@@ -4,8 +4,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"runtime/pprof"
+	"strconv"
 
 	"fortio.org/cli"
 	"fortio.org/log"
@@ -25,6 +27,30 @@ const (
 	ARROWKEYS
 )
 
+func getHighScore() int {
+	path := os.TempDir() + "/tsnakescore.txt"
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	num, err := strconv.Atoi(string(contents))
+	if err != nil {
+		return 0
+	}
+	return num
+}
+
+func setHighScore(score int) error {
+	path := os.TempDir() + "/tsnakescore.txt"
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	_, err = file.WriteString(strconv.Itoa(score))
+	return err
+}
+
 func Main() int {
 	truecolorDefault := ansipixels.DetectColorMode().TrueColor
 	fTrueColor := flag.Bool("truecolor", truecolorDefault,
@@ -33,6 +59,8 @@ func Main() int {
 	fMemprofile := flag.String("profile-mem", "", "write memory profile to `file`")
 	fps := flag.Float64("fps", 10, "set fps")
 	halfFlag := flag.Bool("square", false, "use half height blocks so the snake's body is more square")
+	circularFlag := flag.Bool("wrap", false,
+		"make the snake wrap around the edges of the screen. when false, you lose if you hit the edge")
 	relativeMovementFlag := flag.Bool("relative", false,
 		"move the snake with a/d or left/right so that it turns relative to its current direction")
 	cli.Main()
@@ -59,21 +87,31 @@ func Main() int {
 	if err != nil {
 		panic("error opening terminal")
 	}
+	var s *snake
 	defer func() {
 		ap.Restore()
 		ap.ShowCursor()
 		ap.MoveCursor(0, 0)
+		score := len(s.snake)
+		scoreMessage := fmt.Sprintf("\nYour final score is %d", score)
+		if hs := getHighScore(); score > hs {
+			err = setHighScore(score)
+			scoreMessage = fmt.Sprintf("%s, a new high score! Your previous high score was %d", scoreMessage, hs)
+			if err != nil {
+				scoreMessage = fmt.Sprintf("%s\n Couldn't write new high score due to an error opening temp directory: %v", scoreMessage, err)
+			}
+		}
+		fmt.Println(scoreMessage)
 	}()
 	ap.SyncBackgroundColor()
 	ap.HideCursor()
 	ap.ClearScreen()
-	var s *snake
 	ap.OnResize = func() error {
 		h := ap.H
 		if *halfFlag {
 			h = ap.H * 2
 		}
-		s = newSnake(ap.W, h, *halfFlag)
+		s = newSnake(ap.W, h, *halfFlag, *circularFlag)
 		return nil
 	}
 	handleWasd, handleArrowKeys := handleWasd, handleArrowKeys
@@ -84,29 +122,35 @@ func Main() int {
 	var buffer byte
 	bType := EMPTY
 	err = ap.FPSTicks(func() bool {
-		if len(ap.Data) > 0 && ap.Data[0] == 'q' {
-			return false
+		if len(ap.Data) > 0 {
+			switch ap.Data[0] {
+			case 'q', 'Q':
+				return false
+			case ' ':
+				s.paused = !s.paused
+			}
 		}
-		switch bType {
-		case EMPTY:
-			if len(ap.Data) == 1 {
-				handleWasd(s, ap.Data[0], &buffer, &bType, false)
-			}
-			if len(ap.Data) >= 3 {
-				handleArrowKeys(s, ap.Data[2], &buffer, &bType, false)
-			}
+		if !s.paused {
+			switch bType {
+			case EMPTY:
+				if len(ap.Data) == 1 {
+					handleWasd(s, ap.Data[0], &buffer, &bType, false)
+				}
+				if len(ap.Data) >= 3 {
+					handleArrowKeys(s, ap.Data[2], &buffer, &bType, false)
+				}
 
-		case WASD:
-			handleWasd(s, buffer, &buffer, &bType, true)
-		case ARROWKEYS:
-			handleArrowKeys(s, buffer, &buffer, &bType, true)
+			case WASD:
+				handleWasd(s, buffer, &buffer, &bType, true)
+			case ARROWKEYS:
+				handleArrowKeys(s, buffer, &buffer, &bType, true)
+			}
 		}
 		ap.ClearScreen()
-		if !s.next() {
+		if !s.paused && !s.next() {
 			return false
 		}
 		draw(ap, s)
-		ap.WriteAt(0, 0, "%v %v %v", s.dir, s.firstFrame, bType)
 		return true
 	})
 	if *fMemprofile != "" {

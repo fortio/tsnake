@@ -32,9 +32,11 @@ type snake struct {
 	verticalStreak int
 	square         bool
 	firstFrame     bool
+	paused         bool
+	circular       bool
 }
 
-func newSnake(mx, my int, square bool) *snake {
+func newSnake(mx, my int, square bool, circular bool) *snake {
 	snak := make([]coords, 0, mx*my)
 	snak = append(snak, coords{mx / 2, my / 2})
 	m := make(map[coords]bool)
@@ -47,12 +49,16 @@ func newSnake(mx, my int, square bool) *snake {
 		},
 		maxX: mx,
 		maxY: my, dir: d, m: m,
-		square: square,
+		square:   square,
+		circular: circular,
 	}
 	return &s
 }
 
 func (s *snake) next() bool {
+	if s.paused {
+		return true
+	}
 	if (s.dir == U || s.dir == D) && !s.square {
 		s.verticalStreak++
 		if s.verticalStreak%2 != 0 {
@@ -63,6 +69,11 @@ func (s *snake) next() bool {
 	length := len(s.snake)
 	dir := s.dir
 	changed := directionCoords[dir]
+	x := (s.snake[length-1].X + changed.X)
+	y := (s.snake[length-1].Y + changed.Y)
+	if x > s.maxX || y > s.maxY || x < 0 || y < 0 && !s.circular {
+		return false
+	}
 	next := coords{
 		X: (s.snake[length-1].X + changed.X) % s.maxX,
 		Y: (s.snake[length-1].Y + changed.Y) % s.maxY,
