@@ -431,11 +431,11 @@ func drawPixels(ap *ansipixels.AnsiPixels, pix map[coords]*pixel) {
 			}
 		case pixel.top:
 			char = ansipixels.TopHalfPixel
-			bg = ap.Background.Color()
+			bg = tcolor.None.Color()
 			fg = pixel.topColor
 		case pixel.bottom:
 			char = ansipixels.BottomHalfPixel
-			bg = ap.Background.Color()
+			bg = tcolor.None.Color()
 			fg = pixel.bottomColor
 		default:
 			continue
