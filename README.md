@@ -34,4 +34,8 @@ docker run -ti fortio/tsnake
 tsnake help
 
 flags:
+
+-square will move the cursor by half-pixels rather than full pixels
+-fps allows the user to set the fps of the game 
+-wrap causes the snake to wrap to the other side of the arena when it hits the edge
 ```
