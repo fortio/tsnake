@@ -13,6 +13,7 @@ import (
 	"fortio.org/log"
 	"fortio.org/terminal/ansipixels"
 	"fortio.org/terminal/ansipixels/tcolor"
+	"fortio.org/tsnake/example"
 )
 
 func main() {
@@ -26,6 +27,7 @@ const (
 	WASD
 	ARROWKEYS
 )
+const F = example.X
 
 func getHighScore() int {
 	path := os.TempDir() + "/tsnakescore.txt"
@@ -87,6 +89,7 @@ func Main() int {
 	if err != nil {
 		panic("error opening terminal")
 	}
+	ap.HideCursor()
 	var s *snake
 	defer func() {
 		ap.Restore()
@@ -377,8 +380,8 @@ type pixel struct {
 
 func drawHalf(ap *ansipixels.AnsiPixels, s *snake) {
 	pix := make(map[coords]*pixel)
-	color := tcolor.White.Color()
 	l := len(s.snake)
+	color := tcolor.White.Color()
 	for i, coords := range s.snake {
 		if i == l-1 {
 			color = tcolor.Red.Color()
@@ -418,6 +421,7 @@ func drawPixels(ap *ansipixels.AnsiPixels, pix map[coords]*pixel) {
 	var char rune
 	var bg, fg tcolor.Color
 	for coords, pixel := range pix {
+		ap.WriteString(tcolor.Reset)
 		switch {
 		case pixel.top && pixel.bottom:
 			if pixel.topColor == pixel.bottomColor {
