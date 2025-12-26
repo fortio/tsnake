@@ -13,7 +13,6 @@ import (
 	"fortio.org/log"
 	"fortio.org/terminal/ansipixels"
 	"fortio.org/terminal/ansipixels/tcolor"
-	"fortio.org/tsnake/example"
 )
 
 func main() {
@@ -27,7 +26,6 @@ const (
 	WASD
 	ARROWKEYS
 )
-const F = example.X
 
 func getHighScore() int {
 	path := os.TempDir() + "/tsnakescore.txt"
