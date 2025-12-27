@@ -71,7 +71,7 @@ func (s *snake) next() bool {
 	changed := directionCoords[dir]
 	x := (s.snake[length-1].X + changed.X)
 	y := (s.snake[length-1].Y + changed.Y)
-	if x > s.maxX || y > s.maxY || x < 0 || y < 0 && !s.circular {
+	if (x >= s.maxX || y >= s.maxY || x < 0 || y < 0) && !s.circular {
 		return false
 	}
 	next := coords{
